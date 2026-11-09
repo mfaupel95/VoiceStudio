@@ -14,7 +14,8 @@ import re
 from pathlib import Path
 
 _WINDOWS_RESERVED_NAMES = frozenset({"CON", "PRN", "AUX", "NUL"}) | frozenset(
-    f"{prefix}{number}" for prefix in ("COM", "LPT") for number in range(1, 10)
+    # Windows also treats superscript 1, 2 and 3 as device-number aliases.
+    f"{prefix}{number}" for prefix in ("COM", "LPT") for number in "123456789\u00b9\u00b2\u00b3"
 )
 
 # Both separator families, so a stored sub-path splits into the same components

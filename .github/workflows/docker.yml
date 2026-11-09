@@ -1,14 +1,10 @@
 # Publish Docker images to GitHub Container Registry (GHCR).
 #
-# Triggers:
-#   - GitHub Release published (`v*` tag, e.g. `v0.3.0`) → :0.3.0, :0.3, :stable, :sha-
-#     (never :latest; a tag push alone publishes nothing, so release images wait
-#     until the reviewed Electron draft release is published)
-#   - push to main branch                          → :latest, :main, :sha- (rolling preview)
-#   - workflow_dispatch                            → :sha- only (ad-hoc test build), or
-#     with backfill_release=true the release tags for an existing `vX.Y.Z` tag.
-#     Releases published by electron-release.yml (GITHUB_TOKEN, which cannot
-#     fire `release` events) dispatch that backfill path automatically.
+# Manual publication only: dispatch with publish=true after separate authorization.
+# Pushes, merges, tags and releases never invoke this workflow.
+# Default publish=false skips ALL jobs, including registry cache exports.
+# Existing backfill inputs retain versioned promotion; otherwise only sha tags.
+# Historical event-based tag rules below are inactive; see docs/container-publication.md.
 #
 # Tag ↔ image mapping (versioning hard rule, owner-set 2026-06-11:
 # :latest IS the preview channel; stable users pin :stable or a version tag)
@@ -57,23 +53,12 @@
 name: Docker (GHCR)
 
 on:
-  push:
-    branches: [main]
-    # A merge that only touches these cannot change what the image contains, so it
-    # does not rebuild two ~35 minute images. deploy/dockerhub-overview.md (the Docker
-    # Hub page, synced by this workflow), the Dockerfile and README.md (copied into
-    # the image) are deliberately NOT listed. Release and manual runs are unaffected.
-    paths-ignore:
-      - "docs/**"
-      - "mobile/**"
-      - "changelog.d/**"
-      - "CHANGELOG.md"
-      - ".github/ISSUE_TEMPLATE/**"
-      - ".github/*.md"
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
+      publish:
+        description: Explicitly authorize container image and registry cache publication
+        type: boolean
+        default: false
       backfill_release:
         description: Copy an existing release into canonical GHCR/Docker Hub tags
         type: boolean
@@ -89,7 +74,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 # Only the newest main push needs to build the rolling :latest/:main images, so a
 # newer push cancels an older one. Releases and manual backfills never cancel
@@ -115,8 +99,11 @@ env:
 
 jobs:
   build-and-push:
-    # Only version releases publish images; other release tags are ignored.
-    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
+    # Explicit container authorization, independent of desktop release publishing.
+    if: github.event_name == 'workflow_dispatch' && inputs.publish == true
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -298,8 +285,11 @@ jobs:
   # build step — so it gets a full runner disk to itself: the ROCm base alone
   # is ~10 GB compressed / ~25 GB unpacked.
   build-and-push-rocm:
-    # Only version releases publish images; other release tags are ignored.
-    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
+    # Explicit container authorization, independent of desktop release publishing.
+    if: github.event_name == 'workflow_dispatch' && inputs.publish == true
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -446,8 +436,11 @@ jobs:
   # its own `-cuda-arm64` tags, so the amd64 CUDA tags stay single-arch and an
   # arm64 failure can never block or alter them.
   build-and-push-cuda-arm64:
-    # Only version releases publish images; other release tags are ignored.
-    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
+    # Explicit container authorization, independent of desktop release publishing.
+    if: github.event_name == 'workflow_dispatch' && inputs.publish == true
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

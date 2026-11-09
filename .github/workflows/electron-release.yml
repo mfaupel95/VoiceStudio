@@ -313,8 +313,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      # Dispatch docker.yml after publishing: GITHUB_TOKEN releases fire no `release` event.
-      actions: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TAG: ${{ inputs.release_tag || github.ref_name }}
@@ -378,13 +376,4 @@ jobs:
           else
             gh release edit "$TAG" --draft=false --prerelease=false --latest
           fi
-      # docker.yml publishes release images on `release: published`, which a
-      # GITHUB_TOKEN publish cannot trigger; dispatch its release backfill path.
-      # Only Stable moves `:stable`; a beta gets `:beta` and its exact tag.
-      - name: Publish release container images
-        if: github.event_name == 'workflow_dispatch' && inputs.publish == true
-        run: |
-          PROMOTE=false
-          if [ "$CHANNEL" = stable ]; then PROMOTE=true; fi
-          gh workflow run docker.yml --ref main \
-            -f backfill_release=true -f release_ref="$TAG" -f promote_stable="$PROMOTE"
+      # Container publication is a separate, explicitly authorized Docker dispatch.

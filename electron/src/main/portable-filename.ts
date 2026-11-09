@@ -9,6 +9,8 @@ const RESERVED = new Set([
   'NUL',
   ...Array.from({ length: 9 }, (_, i) => `COM${i + 1}`),
   ...Array.from({ length: 9 }, (_, i) => `LPT${i + 1}`),
+  // Windows also treats superscript 1, 2 and 3 as device-number aliases.
+  ...['\u00b9', '\u00b2', '\u00b3'].flatMap((digit) => [`COM${digit}`, `LPT${digit}`]),
 ]);
 const encoder = new TextEncoder();
 
